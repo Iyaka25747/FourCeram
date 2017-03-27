@@ -1,4 +1,4 @@
-//Version V1: Working minimal version.
+//Version V2: New Algorythme
 #include <TM1637Display.h> // 7 segments display library
 #include <PID_v1.h> // PID Library
 #define PIN_INPUT 0
