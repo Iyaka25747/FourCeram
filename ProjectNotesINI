@@ -1,0 +1,14 @@
+Amélioration possible:
+- Ajouter un son (voir autre note dans dossier de projet.
+
+- Imprécision cumulée: Une erreur s accumule. Il faudrait repartir du point de départ pour calculer
+le setpoint suivant. Ne pas repartie du setPoint précédent car une erreur se cumule...
+Ou encore le tableau entrer par l utilisateur donne les C° à atteindre et non pas les delta par rapport
+au point précédent.
+
+
+
+Rampe hors cotes: 
+ Ajouter une fonction de warning qui informe en cas de courbe qui ne puisse pas être appliquée
+par le four. Eg. le four ne peut pas appliquer une rampe de +500C° en 15min. Le warning
+pourrait être sonnore, afichage clignotant our message text sur le moniteur série...
