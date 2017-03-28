@@ -143,11 +143,7 @@ void setup() {
 		}
 		Serial.println();
 	}
-}
-// SETUP END ///
 
-void loop() {
-	countDownClock(countdownTimeMillis); // start the countdown timer before we start
 	int ovenStartTemp = readAverageInput();
 	int ovenStartTempCelesius = mapTempDigitToCelesius(ovenStartTemp);
 	myPID.SetTunings(consKp, consKi, consKd);
@@ -155,7 +151,7 @@ void loop() {
 	setPointCelesius = 20;
 	int stepIncrementCelesius;
 //	int stepInterval = 2000; // DEBUG we will break the segment in 2 seconds steps.
-	int stepInterval = 20000; // we will break the segment in steps during 'stepInterval' [sec]
+
 	if (debugCode) {
 		Serial.println("Let's cook something");
 		Serial.print("Initial oven Digit/C: ");
@@ -169,6 +165,16 @@ void loop() {
 		Serial.println();
 
 	}
+
+}
+// SETUP END ///
+
+void loop() {
+
+
+	int stepInterval = 20000; // we will break the segment in steps during 'stepInterval' [sec]
+
+	countDownTimer(countdownTimeMillis); // start the countdown timer before we start
 	////Iteration through curves
 	for (currentSegment = 0; currentSegment <= segmentTotalNumber; currentSegment++) {
 		//int stepDuration = 300000; // we will break the segment in 5minutes steps.
@@ -396,7 +402,7 @@ float mapTempCelesiusToDigit(float temp_in) {
 	return result;
 }
 
-void countDownClock(int timeSetMillis) {
+void countDownTimer(int timeSetMillis) {
 	int timeSetMinute = timeSetMillis / 60000;
 	unsigned long startTimeCounter = millis();
 	unsigned long refreshInterval = 500;
