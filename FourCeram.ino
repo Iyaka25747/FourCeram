@@ -47,7 +47,7 @@ const int CLK = 3; //Set the CLK pin connection to the display
 const int DIO1 = 2; //Set the DIO pin connection to the display
 TM1637Display displayMeasuredTemp(CLK, DIO1); //set up the 4-Digit Display1.
 
-//Setpoint
+//SetPoint
 // Let's use the CLK const above for both display
 const int DIO2 = 4; //Set the DIO pin connection to the display
 TM1637Display displaySetTemp(CLK, DIO2); //set up the 4-Digit Display2.
@@ -60,7 +60,9 @@ Temperature management values
 int numTemperature = 0; // the computed temperature in C°
 long setPointCelesius;//Setpoint in Celesius
 
-// Oven sensor & relay values
+/*
+ Oven sensor & relay values
+ */
 const int analogInPin = A0; // Analog input pin temperature signal from op amp of the oven 0-5 V
 int sensorDigit = 0;        // value read from the analog input
 long sensorCelesius = 0; // value mapped from sensor value, use for output to the PWM (analog out)
@@ -86,15 +88,21 @@ int segmentDeltaTemp;
 int segmentTotalNumberOfSteps;
 int segmentDeltaTempCelesius;
 //	int stepInterval = 2000; // DEBUG we will break the segment in 2 seconds steps.
-	int stepInterval = 20000; // we will break the segment in steps during 'stepInterval' [sec]
+int stepInterval = 20000; // we will break the segment in steps during 'stepInterval' [sec]
+float segmentDeltaTempDigit ;
+float stepDeltaTempDigit;
+
+/*
+ * Time management*/
+long unsigned regulationStartTime;
 
 //TEMPERATURE MAPPING
 // Temperature between 0 - 100C° are not displayed correctly
 
 // Transfer function to map singal board in into C°
 // f(x)=  a*x + d; f = temperature [C°]; x = board in
-float tempFn_slope = 1.62;
-float tempFn_origine = -44.44;
+float tempFunctionSlope = 1.62;
+float tempFunctionOrigine = -44.44;
 
 // PID values
 //Define Variables we'll be connecting to
@@ -111,9 +119,11 @@ boolean aggressiveMode = false;
 PID myPID(&PidInput, &PidOutput, &setPoint, consKp, consKi, consKd, DIRECT);
 
 int WindowSize = 5000; //window size for PWM to the relay
-unsigned long windowStartTime; // private to PID
+unsigned long PIDwindowStartTime; // private to PID
 
-// MONITORING
+/*
+ * MONITORING
+ */
 // Set Monitoring output type: Readable directly or Copy past CSV to table (excel...)
 int monitor_CSV = 0; // 0 = No log, 1 = csv log copy paste, 2 = serial monitor
 //int logPeriod = 5000; // DEBUG 5 second. Interval in milli second between records, write a new line every "monitor_period" millisecondes
@@ -129,7 +139,7 @@ const int segmentNbIndex = 5;
 const int numberOfDataRecords = 6;
 char* dataLabel[] = { "time_Millis", "read_in", "PID_out", "setPoint",
 		"temp_celesius", "SegmentNb" };
-long logData[numberOfDataRecords];
+long dataRecord[numberOfDataRecords];
 
 void setup() {
 
@@ -139,7 +149,7 @@ void setup() {
 	Serial.begin(9600);			// initialize serial communications at 9600 bps:
 
 	//PID setup
-	windowStartTime = millis();
+	PIDwindowStartTime = millis();
 	//SETPOINT  150 = 198 C°, 220-->311 C°, 274-->399 C°, 398-->600 C°,583-->900, 645-->1000C°,
 	//  setPoint = 583;
 	//  storeDataValue[setPointIndex] = setPoint;
@@ -193,37 +203,18 @@ void setup() {
 
 void loop() {
 
+	countDownTimer(countdownTimeMillis); // start the countdown timer and wait before we start
 
+	regulationStartTime = millis();
 
-
-	countDownTimer(countdownTimeMillis); // start the countdown timer before we start
 	////Iteration through curves
 	for (currentSegment = 0; currentSegment <= segmentTotalNumber; currentSegment++) {
 		//int stepDuration = 300000; // we will break the segment in 5minutes steps.
-		logData[segmentNbIndex] = currentSegment;
+		dataRecord[segmentNbIndex] = currentSegment;
 		segmentTotalNumberOfSteps = segmentDurationMinutes[currentSegment] * 60000 / stepInterval; // number of steps in the segment
 		segmentDeltaTempCelesius = segmentDeltaCelesius[currentSegment];
-//		if (currentSegment==0) { // Remove current oven temperature before computing deltas
-//			if (debugCode) {
-//				Serial.print("Adjusting first segment delta temp, segmentDeltaTempCelesius before:");
-//				Serial.print(segmentDeltaTempCelesius);
-//				Serial.print(" - ");
-//				Serial.println(ovenStartTempCelesius);
-//				segmentDeltaTempCelesius = segmentDeltaTempCelesius - ovenStartTempCelesius;
-//			}
-//		}
-//		if (currentSegment == segmentTotalNumber){
-//			if (debugCode) {
-//				Serial.print("Adjusting last segment delta temp, segmentDeltaTempCelesius before:");
-//				Serial.print(segmentDeltaTempCelesius);
-//				Serial.print(" - ");
-//				Serial.println(ovenStartTempCelesius);
-//				segmentDeltaTempCelesius = segmentDeltaTempCelesius - ovenStartTempCelesius;
-//				segmentDeltaTemp = mapTempCelesiusToDigit(segmentDeltaTempCelesius);
-//			}
-//		}
-		float segmentDeltaTempDigit = (segmentDeltaTempCelesius / tempFn_slope);
-		float stepDeltaTempDigit = segmentDeltaTempDigit / segmentTotalNumberOfSteps;
+		segmentDeltaTempDigit = segmentDeltaTempCelesius / tempFunctionSlope;
+		stepDeltaTempDigit = segmentDeltaTempDigit / segmentTotalNumberOfSteps;
 		if (debugCode) {
 			Serial.print("++Starting segment: ");
 			Serial.print(currentSegment+1);
@@ -283,12 +274,12 @@ void loop() {
 			long startIteration = millis();
 			while (millis() - startIteration < stepInterval) {
 				//void runTempSegment (int steps; int incrementTemp){
-				logData[timeIndex] = millis(); // Let's store the start time of the loop beginning
+				dataRecord[timeIndex] = millis(); // Let's store the start time of the loop beginning
 				sensorDigit = readAverageInput();
-				logData[tempSignalInIndex] = sensorDigit; // Let's store the measured average in
+				dataRecord[tempSignalInIndex] = sensorDigit; // Let's store the measured average in
 				//sensorInCelesius = map(sensorValue, 14, 1023, 25, 1596);
 				sensorCelesius = mapTempDigitToCelesius(sensorDigit);
-				logData[tempCelesiusIndex] = sensorCelesius; // Let's store the measured average temperature
+				dataRecord[tempCelesiusIndex] = sensorCelesius; // Let's store the measured average temperature
 				//				  Serial.print("Temperature in C: ");
 				//				  Serial.println(sensorCelesius);
 				// Display the value on 7 segment display1 every 1 second
@@ -303,14 +294,14 @@ void loop() {
 				//**** PID START ****
 				PidInput = sensorDigit;
 				myPID.Compute();
-				logData[PID_computedIndex] = PidOutput;
+				dataRecord[PID_computedIndex] = PidOutput;
 				/************************************************
 				 * turn the pid output in a timewindows on/off -  output/relay
 				 ************************************************/
-				if (millis() - windowStartTime > WindowSize) { //time to shift the Relay Window
-					windowStartTime += WindowSize;
+				if (millis() - PIDwindowStartTime > WindowSize) { //time to shift the Relay Window
+					PIDwindowStartTime += WindowSize;
 				}
-				if (PidOutput < millis() - windowStartTime) // Set Relay pin HIGH/LOW
+				if (PidOutput < millis() - PIDwindowStartTime) // Set Relay pin HIGH/LOW
 						{
 					relayState = LOW;
 					digitalWrite(RELAY_PIN, relayState);
@@ -350,7 +341,7 @@ void loop() {
 //							Serial.print("SegmentNB:");
 //							Serial.println(logData[segmentNbIndex]);
 							Serial.print("\t");
-							Serial.print(logData[i]);
+							Serial.print(dataRecord[i]);
 						}
 						Serial.println();
 					}
@@ -359,7 +350,7 @@ void loop() {
 			}
 			setPoint = setPoint + stepDeltaTempDigit;
 			setPointCelesius = mapTempDigitToCelesius(setPoint);
-			logData[setPointIndex] = setPoint; //record new setPoint
+			dataRecord[setPointIndex] = setPoint; //record new setPoint
 //			if (debugCode) {
 //				Serial.print("New setPoint:");
 //				Serial.println(setPoint);
@@ -414,13 +405,13 @@ int readAverageInput() {
 
 float mapTempDigitToCelesius(int singal_in) {
 	float result;
-	result = tempFn_slope * singal_in + tempFn_origine;
+	result = tempFunctionSlope * singal_in + tempFunctionOrigine;
 	return result;
 }
 
 float mapTempCelesiusToDigit(float temp_in) {
 	float result;
-	result = (temp_in - tempFn_origine) / tempFn_slope;
+	result = (temp_in - tempFunctionOrigine) / tempFunctionSlope;
 	return result;
 }
 
