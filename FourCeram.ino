@@ -7,9 +7,9 @@
 #define HIGH 1
 #define RELAY_PIN 6 // Command of relay
 
-// ****************//
-//PUBLIC VARIABLES//
-//*****************//
+/*
+PUBLIC VARIABLES
+*/
 //Temperature curve each point contains; delta_celesius, DeltaTime}. Delta_celesius[Celesius] = the temperature difference and DeltaTime[minute] is the duration.
 // E.g. 230, 60 is a ramp of +230C째 in 60 minutes, or 0,180 is a stable temperature during 3hours.
 //PRODUCTION values
@@ -30,40 +30,44 @@ float countdownTimeMinute = 0.16;
 int countdownTimeMillis = 10000;
 int initialtemperature = 20; // Used if the oven is not cold during at start time.
 
-// ****************//
-//PRIVATE VARIABLES///
-//*****************//
+/*
+PRIVATE variable
+*/
+
+/*
+Debug
+*/
 boolean debugCode = true;
-//DISPLAY Measured temperature
+
+/*
+HEX Display, measure and temperature setpoint
+*/
+//Measured temperature
 const int CLK = 3; //Set the CLK pin connection to the display
 const int DIO1 = 2; //Set the DIO pin connection to the display
 TM1637Display displayMeasuredTemp(CLK, DIO1); //set up the 4-Digit Display1.
-//DISPLAY Setpoint
+
+//Setpoint
 // Let's use the CLK const above for both display
 const int DIO2 = 4; //Set the DIO pin connection to the display
 TM1637Display displaySetTemp(CLK, DIO2); //set up the 4-Digit Display2.
 long lastDisplayTime; // Used for time interval between display refresh
 
-// Various values
-const int analogInPin = A0; // Analog input pin temperature signal from op amp of the oven 0-5 V
+
+/*
+Temperature management values
+*/
 int numTemperature = 0; // the computed temperature in C째
+long setPointCelesius;//Setpoint in Celesius
+
+// Oven sensor & relay values
+const int analogInPin = A0; // Analog input pin temperature signal from op amp of the oven 0-5 V
 int sensorDigit = 0;        // value read from the analog input
 long sensorCelesius = 0; // value mapped from sensor value, use for output to the PWM (analog out)
 boolean relayState = LOW; // oven relay value HIGH or LOW use to open or close the current to the oven
-long setPointCelesius;//Setpoint in Celesius
-int currentSegment; // used for the partial line (segment) of the curve
-int segmentDeltaTemp;
-int segmentTotalNumberOfSteps;
-int segmentDeltaTempCelesius;
 
-// Temperature between 0 - 100C째 are not displayed correctly
-//TEMPERATURE MAPPING
-// Transfer function to map singal board in into C째
-// f(x)=  a*x + d; f = temperature [C째]; x = board in
-float tempFn_slope = 1.62;
-float tempFn_origine = -44.44;
 
-// Smooting input value parameters to get rid of erratic values
+// Smoothing input value parameters to get rid of erratic values
 // Define the number of samples to keep track of.  The higher the number,
 // the more the readings will be smoothed, but the slower the output will
 // respond to the input.
@@ -72,6 +76,25 @@ int readings[numReadings]; // array use to hold the the readings from the analog
 int readIndex = 0;              // the index of the current reading
 int total = 0;                  // the running total, total of the array
 int average = 0;                // the computed average
+
+
+/*
+Curve management values
+*/
+int currentSegment; // used for the partial line (segment) of the curve
+int segmentDeltaTemp;
+int segmentTotalNumberOfSteps;
+int segmentDeltaTempCelesius;
+//	int stepInterval = 2000; // DEBUG we will break the segment in 2 seconds steps.
+	int stepInterval = 20000; // we will break the segment in steps during 'stepInterval' [sec]
+
+//TEMPERATURE MAPPING
+// Temperature between 0 - 100C째 are not displayed correctly
+
+// Transfer function to map singal board in into C째
+// f(x)=  a*x + d; f = temperature [C째]; x = board in
+float tempFn_slope = 1.62;
+float tempFn_origine = -44.44;
 
 // PID values
 //Define Variables we'll be connecting to
@@ -88,7 +111,7 @@ boolean aggressiveMode = false;
 PID myPID(&PidInput, &PidOutput, &setPoint, consKp, consKi, consKd, DIRECT);
 
 int WindowSize = 5000; //window size for PWM to the relay
-unsigned long windowStartTime;
+unsigned long windowStartTime; // private to PID
 
 // MONITORING
 // Set Monitoring output type: Readable directly or Copy past CSV to table (excel...)
@@ -150,7 +173,6 @@ void setup() {
 	setPoint = mapTempCelesiusToDigit(20);//Define initial setpoint. Supposed to be at 20C� if oven is cold
 	setPointCelesius = 20;
 	int stepIncrementCelesius;
-//	int stepInterval = 2000; // DEBUG we will break the segment in 2 seconds steps.
 
 	if (debugCode) {
 		Serial.println("Let's cook something");
@@ -172,7 +194,7 @@ void setup() {
 void loop() {
 
 
-	int stepInterval = 20000; // we will break the segment in steps during 'stepInterval' [sec]
+
 
 	countDownTimer(countdownTimeMillis); // start the countdown timer before we start
 	////Iteration through curves
