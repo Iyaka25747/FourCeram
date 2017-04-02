@@ -10,18 +10,18 @@
 /*
 PUBLIC VARIABLES
 */
-//Temperature curve each point contains; delta_celesius, DeltaTime}. Delta_celesius[Celesius] = the temperature difference and DeltaTime[minute] is the duration.
-// E.g. 230, 60 is a ramp of +230CÂ° in 60 minutes, or 0,180 is a stable temperature during 3hours.
+//Temperature curve each point contains; segmentTargetCelesius, duration in min
+// E.g. 230, 60 is a target temp of 230 C° in 60 minutes
 //PRODUCTION values
-const int segmentDeltaCelesius[] = { 230, 500, 0, -80, 0, -650 };
+const int segmentTargetCelesius[] = { 230, 730, 730, 650, 650, 0 }; // CODE Improvement: this should be a matrix matrix[][]
 const int segmentDurationMinutes[] = { 60, 120, 180, 60, 300, 300 };
 const int segmentTotalNumber = 6; // the curve above contains 6 points
 ////TESTING values oven not connected
-//const int segmentDeltaCelesius[] = { 230, 0, -230, 0 };
+//const int segmentTargetCelesius[] = { 230,230, 0, 0 };
 //const int segmentDurationMinutes[] = { 1, 1, 1, 1 };
 //const int segmentTotalNumber = 4; // the curve above contains 6 points
 ////TESTING values oven connected
-//const int segmentDeltaCelesius[] = {230,0,-230};
+//const int segmentTargetCelesius[] = {230,230,0};
 //const int segmentDurationMinutes[] = {10,10,10};
 //const int segmentTotalNumber = 3; // the curve above contains 6 points
 /*Countdown timer before we start the heating program*/
@@ -86,9 +86,9 @@ Curve management values
 int currentSegment; // used for the partial line (segment) of the curve
 int segmentDeltaTemp;
 int segmentTotalNumberOfSteps;
-int segmentDeltaTempCelesius;
+int segmentTargetTempCelesius;
 //	int stepInterval = 2000; // DEBUG we will break the segment in 2 seconds steps.
-int stepInterval = 20000; // we will break the segment in steps during 'stepInterval' [sec]
+int stepInterval = 20000; // we will break the segment in steps of 'stepInterval' [millis]
 float segmentDeltaTempDigit ;
 float stepDeltaTempDigit;
 
@@ -122,7 +122,7 @@ int WindowSize = 5000; //window size for PWM to the relay
 unsigned long PIDwindowStartTime; // private to PID
 
 /*
- * MONITORING
+ * MONITORING & Recording
  */
 // Set Monitoring output type: Readable directly or Copy past CSV to table (excel...)
 int monitor_CSV = 0; // 0 = No log, 1 = csv log copy paste, 2 = serial monitor
@@ -234,151 +234,158 @@ void loop() {
 	}
 }
 
-void regulateSegment(int SegmentNB, int stepInterval) {
+void regulateSegment(int SegmentNB, int stepInterval) { // SegmentNB is the segment number to be played, setpInterval in is the duration in millis of one step.
+	unsigned long segmentStartTime = millis();
 	dataRecord[segmentNbIndex] = currentSegment;
-			segmentTotalNumberOfSteps = segmentDurationMinutes[currentSegment] * 60000 / stepInterval; // number of steps in the segment
-			segmentDeltaTempCelesius = segmentDeltaCelesius[currentSegment];
-			segmentDeltaTempDigit = segmentDeltaTempCelesius / tempFunctionSlope;
-			stepDeltaTempDigit = segmentDeltaTempDigit / segmentTotalNumberOfSteps;
-			if (debugCode) {
-				Serial.print("++Starting segment: ");
-				Serial.print(currentSegment+1);
-				Serial.print("/");
-				Serial.println(segmentTotalNumber);
-				//TEMP C°
-				Serial.print("\tSETPOINT C°- currentC°:");
-				Serial.print(setPointCelesius);
-				Serial.print("\t, DeltaC°:");
-				Serial.print(segmentDeltaCelesius[currentSegment]);
-				Serial.print("\t, targetC° (current+delta):");
-				Serial.println(setPointCelesius + segmentDeltaCelesius[currentSegment]);
-				//TEMP Digit
-				Serial.print("\tSETPOINT DIGIT- current:");
-				Serial.print(setPoint);
-				Serial.print("\t, Delta:");
-				Serial.print(mapTempCelesiusToDigit(segmentDeltaCelesius[currentSegment]));
-				Serial.print("\t, target (current+delta):");
-				Serial.println(setPoint + mapTempCelesiusToDigit(segmentDeltaCelesius[currentSegment]));
+	segmentTotalNumberOfSteps = segmentDurationMinutes[currentSegment] * 60000 / stepInterval; // number of steps in the segment
+	segmentTargetTempCelesius = segmentTargetCelesius[currentSegment]; // segment temperature difference in C°  for the segment
 
-				Serial.print("\tsegmentDurationMinutes:");
-				Serial.println(segmentDurationMinutes[currentSegment]);
-				Serial.print("\tSegment increment C°/digit:");
-				Serial.print(segmentDeltaTempCelesius);
-				Serial.print("/");
-				Serial.println(segmentDeltaTempDigit);
-				Serial.print("\tSTEP in segment, total Nb:");
-				Serial.println(segmentTotalNumberOfSteps);
-				Serial.print("\tSTEP in segment, stepDeltaTempDigit:");
-				Serial.println(stepDeltaTempDigit);
-				Serial.println();
-				Serial.println("Starting steps in segment");
+
+
+
+
+	/*Revise below: Delta vs Target...*/
+	segmentDeltaTempDigit = segmentTargetTempCelesius / tempFunctionSlope; // segment temperature difference in Digit for the segment
+	stepDeltaTempDigit = segmentDeltaTempDigit / segmentTotalNumberOfSteps; // step temperature difference in Digit for the segment
+	if (debugCode) {
+		Serial.print("++Starting segment: ");
+		Serial.print(currentSegment+1);
+		Serial.print("/");
+		Serial.println(segmentTotalNumber);
+		//TEMP C°
+		Serial.print("\tSETPOINT C°- currentC°:");
+		Serial.print(setPointCelesius);
+		Serial.print("\t, DeltaC°:");
+		Serial.print(segmentTargetCelesius[currentSegment]);
+		Serial.print("\t, targetC° (current+delta):");
+		Serial.println(setPointCelesius + segmentTargetCelesius[currentSegment]);
+		//TEMP Digit
+		Serial.print("\tSETPOINT DIGIT- current:");
+		Serial.print(setPoint);
+		Serial.print("\t, Delta:");
+		Serial.print(mapTempCelesiusToDigit(segmentTargetCelesius[currentSegment]));
+		Serial.print("\t, target (current+delta):");
+		Serial.println(setPoint + mapTempCelesiusToDigit(segmentTargetCelesius[currentSegment]));
+
+		Serial.print("\tsegmentDurationMinutes:");
+		Serial.println(segmentDurationMinutes[currentSegment]);
+		Serial.print("\tSegment increment C°/digit:");
+		Serial.print(segmentTargetTempCelesius);
+		Serial.print("/");
+		Serial.println(segmentDeltaTempDigit);
+		Serial.print("\tSTEP in segment, total Nb:");
+		Serial.println(segmentTotalNumberOfSteps);
+		Serial.print("\tSTEP in segment, stepDeltaTempDigit:");
+		Serial.println(stepDeltaTempDigit);
+		Serial.println();
+		Serial.println("Starting steps in segment");
+	}
+
+	for (int i = 0; i <= segmentTotalNumberOfSteps; i++) {
+		//DISPLAY2 SETPOINT in Celesius 7 Segment
+		setPointCelesius = mapTempDigitToCelesius(setPoint);
+		displaySetTemp.showNumberDec(setPointCelesius); // Set Temperature display
+		if (debugCode) {
+			Serial.print("Step: ");
+			Serial.print(i+1);
+			Serial.print(" / ");
+			Serial.println(segmentTotalNumberOfSteps);
+			Serial.print("Setpoint C°/Digit: ");
+			Serial.print(setPointCelesius);
+			Serial.print(" / ");
+			Serial.println(setPoint);
+			Serial.print("Sensor C°/Digit: ");
+			Serial.print(sensorCelesius);
+			Serial.print(" / ");
+			Serial.println(sensorDigit);
+			Serial.println();
+		}
+
+		long startIteration = millis();
+		while (millis() - startIteration < stepInterval) {
+			//void runTempSegment (int steps; int incrementTemp){
+			dataRecord[timeIndex] = millis(); // Let's store the start time of the loop beginning
+			sensorDigit = readAverageInput();
+			dataRecord[tempSignalInIndex] = sensorDigit; // Let's store the measured average in
+			//sensorInCelesius = map(sensorValue, 14, 1023, 25, 1596);
+			sensorCelesius = mapTempDigitToCelesius(sensorDigit);
+			dataRecord[tempCelesiusIndex] = sensorCelesius; // Let's store the measured average temperature
+			//				  Serial.print("Temperature in C: ");
+			//				  Serial.println(sensorCelesius);
+			// Display the value on 7 segment display1 every 1 second
+			if (millis() - 1000 > lastDisplayTime) {
+				int displayedValueCelesius = sensorCelesius;
+				if (displayedValueCelesius < 80) {
+					displayedValueCelesius = 80; //Let's start display at 80C°, before 100C° the sensor it's not accurate
+				}
+				displayMeasuredTemp.showNumberDec(displayedValueCelesius); //Display the numCounter value;
+				lastDisplayTime = millis(); // Let's display the value every second
 			}
+			//**** PID START ****
+			PidInput = sensorDigit;
+			myPID.Compute();
+			dataRecord[PID_computedIndex] = PidOutput;
+			/************************************************
+			 * turn the pid output in a timewindows on/off -  output/relay
+			 ************************************************/
+			if (millis() - PIDwindowStartTime > WindowSize) { //time to shift the Relay Window
+				PIDwindowStartTime += WindowSize;
+			}
+			if (PidOutput < millis() - PIDwindowStartTime) // Set Relay pin HIGH/LOW
+			{
+				relayState = LOW;
+				digitalWrite(RELAY_PIN, relayState);
+			} else {
+				relayState = HIGH;
+				digitalWrite(RELAY_PIN, relayState);
+			}
+			//**** PID END   ****
+			// Monitoring output with data recorded
+			if (millis() - lastMonitorStartPeriod > logPeriod) {
+				if (monitor_CSV == 2) {
+					// print the results to the serial monitor:
+					Serial.print("Time=");
+					Serial.print(millis());
+					Serial.print("\tBoard signal in= ");
+					Serial.print(sensorDigit);
+					Serial.print("\tPID in= ");
+					Serial.print(PidInput);
+					Serial.print("\tPID out computed= ");
+					Serial.print(PidOutput);
+					Serial.print("\tsetPoint=");
+					Serial.print(setPoint);
+					//Serial.print("\tMapped sensor (temp.)= ");
+					//Serial.print(sensorInCelesius);
+					//Serial.print("\tRelay= ");
+					//Serial.print(relayState);
+					//Serial.print("\t(mil-winStrtTm)value= ");
+					//Serial.println(millis() - windowStartTime);
+					Serial.print("\taggressive mode= ");
+					Serial.println(aggressiveMode);
 
-			for (int i = 0; i <= segmentTotalNumberOfSteps; i++) {
-				//DISPLAY2 SETPOINT in Celesius 7 Segment
-				setPointCelesius = mapTempDigitToCelesius(setPoint);
-				displaySetTemp.showNumberDec(setPointCelesius); // Set Temperature display
-				if (debugCode) {
-					Serial.print("Step: ");
-					Serial.print(i+1);
-					Serial.print(" / ");
-					Serial.println(segmentTotalNumberOfSteps);
-					Serial.print("Setpoint C°/Digit: ");
-					Serial.print(setPointCelesius);
-					Serial.print(" / ");
-					Serial.println(setPoint);
-					Serial.print("Sensor C°/Digit: ");
-					Serial.print(sensorCelesius);
-					Serial.print(" / ");
-					Serial.println(sensorDigit);
+				}
+
+				if (monitor_CSV == 1) {
+					//Print the stored values
+					for (int i = 0; i < numberOfDataRecords; i++) {
+						//							Serial.print("SegmentNB:");
+						//							Serial.println(logData[segmentNbIndex]);
+						Serial.print("\t");
+						Serial.print(dataRecord[i]);
+					}
 					Serial.println();
 				}
-
-				long startIteration = millis();
-				while (millis() - startIteration < stepInterval) {
-					//void runTempSegment (int steps; int incrementTemp){
-					dataRecord[timeIndex] = millis(); // Let's store the start time of the loop beginning
-					sensorDigit = readAverageInput();
-					dataRecord[tempSignalInIndex] = sensorDigit; // Let's store the measured average in
-					//sensorInCelesius = map(sensorValue, 14, 1023, 25, 1596);
-					sensorCelesius = mapTempDigitToCelesius(sensorDigit);
-					dataRecord[tempCelesiusIndex] = sensorCelesius; // Let's store the measured average temperature
-					//				  Serial.print("Temperature in C: ");
-					//				  Serial.println(sensorCelesius);
-					// Display the value on 7 segment display1 every 1 second
-					if (millis() - 1000 > lastDisplayTime) {
-						int displayedValueCelesius = sensorCelesius;
-						if (displayedValueCelesius < 80) {
-							displayedValueCelesius = 80; //Let's start display at 80C°, before 100C° the sensor it's not accurate
-						}
-						displayMeasuredTemp.showNumberDec(displayedValueCelesius); //Display the numCounter value;
-						lastDisplayTime = millis(); // Let's display the value every second
-					}
-					//**** PID START ****
-					PidInput = sensorDigit;
-					myPID.Compute();
-					dataRecord[PID_computedIndex] = PidOutput;
-					/************************************************
-					 * turn the pid output in a timewindows on/off -  output/relay
-					 ************************************************/
-					if (millis() - PIDwindowStartTime > WindowSize) { //time to shift the Relay Window
-						PIDwindowStartTime += WindowSize;
-					}
-					if (PidOutput < millis() - PIDwindowStartTime) // Set Relay pin HIGH/LOW
-							{
-						relayState = LOW;
-						digitalWrite(RELAY_PIN, relayState);
-					} else {
-						relayState = HIGH;
-						digitalWrite(RELAY_PIN, relayState);
-					}
-					//**** PID END   ****
-					// Monitoring output with data recorded
-					if (millis() - lastMonitorStartPeriod > logPeriod) {
-						if (monitor_CSV == 2) {
-							// print the results to the serial monitor:
-							Serial.print("Time=");
-							Serial.print(millis());
-							Serial.print("\tBoard signal in= ");
-							Serial.print(sensorDigit);
-							Serial.print("\tPID in= ");
-							Serial.print(PidInput);
-							Serial.print("\tPID out computed= ");
-							Serial.print(PidOutput);
-							Serial.print("\tsetPoint=");
-							Serial.print(setPoint);
-							//Serial.print("\tMapped sensor (temp.)= ");
-							//Serial.print(sensorInCelesius);
-							//Serial.print("\tRelay= ");
-							//Serial.print(relayState);
-							//Serial.print("\t(mil-winStrtTm)value= ");
-							//Serial.println(millis() - windowStartTime);
-							Serial.print("\taggressive mode= ");
-							Serial.println(aggressiveMode);
-
-						}
-
-						if (monitor_CSV == 1) {
-							//Print the stored values
-							for (int i = 0; i < numberOfDataRecords; i++) {
-	//							Serial.print("SegmentNB:");
-	//							Serial.println(logData[segmentNbIndex]);
-								Serial.print("\t");
-								Serial.print(dataRecord[i]);
-							}
-							Serial.println();
-						}
-						lastMonitorStartPeriod = millis();
-					}
-				}
-				setPoint = setPoint + stepDeltaTempDigit;
-				setPointCelesius = mapTempDigitToCelesius(setPoint);
-				dataRecord[setPointIndex] = setPoint; //record new setPoint
-	//			if (debugCode) {
-	//				Serial.print("New setPoint:");
-	//				Serial.println(setPoint);
-	//			}
+				lastMonitorStartPeriod = millis();
 			}
+		}
+		setPoint = setPoint + stepDeltaTempDigit;
+		setPointCelesius = mapTempDigitToCelesius(setPoint);
+		dataRecord[setPointIndex] = setPoint; //record new setPoint
+		//			if (debugCode) {
+		//				Serial.print("New setPoint:");
+		//				Serial.println(setPoint);
+		//			}
+	}
 
 }
 
