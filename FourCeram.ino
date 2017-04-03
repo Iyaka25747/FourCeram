@@ -89,8 +89,7 @@ int segmentTotalNumberOfSteps;
 int segmentTargetTempCelesius;
 //	int stepInterval = 2000; // DEBUG we will break the segment in 2 seconds steps.
 int stepInterval = 20000; // we will break the segment in steps of 'stepInterval' [millis]
-float segmentDeltaTempDigit ;
-float stepDeltaTempDigit;
+
 
 /*
  * Time management*/
@@ -235,17 +234,16 @@ void loop() {
 }
 
 void regulateSegment(int SegmentNB, int stepInterval) { // SegmentNB is the segment number to be played, setpInterval in is the duration in millis of one step.
+
+	float stepDeltaTempDigit;
 	unsigned long segmentStartTime = millis();
+	int segmentDeltaTempCelesius;
+	float segmentDeltaTempDigit
+
+
 	dataRecord[segmentNbIndex] = currentSegment;
 	segmentTotalNumberOfSteps = segmentDurationMinutes[currentSegment] * 60000 / stepInterval; // number of steps in the segment
-	segmentTargetTempCelesius = segmentTargetCelesius[currentSegment]; // segment temperature difference in C°  for the segment
-
-
-
-
-
-	/*Revise below: Delta vs Target...*/
-	segmentDeltaTempDigit = segmentTargetTempCelesius / tempFunctionSlope; // segment temperature difference in Digit for the segment
+	segmentDeltaTempCelesius = segmentTargetCelesius[currentSegment] - segmentTargetCelesius[currentSegment-1]																			 segmentDeltaTempDigit = segmentDeltaTempCelesius / tempFunctionSlope; // segment temperature difference in Digit for the segment
 	stepDeltaTempDigit = segmentDeltaTempDigit / segmentTotalNumberOfSteps; // step temperature difference in Digit for the segment
 	if (debugCode) {
 		Serial.print("++Starting segment: ");
